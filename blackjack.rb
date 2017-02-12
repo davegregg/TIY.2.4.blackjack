@@ -1,25 +1,40 @@
 #!/usr/bin/env ruby
-require_relative 'player'
+require_relative 'dealer'
+require_relative 'ColorizeCards'
 require 'tty'
 require 'pry'
 
 class Game
+include ColorizeCards
+attr_accessor :deck, :dealer, :first_baseman
 
   def initialize
 
-    print "\n####################################################\n"
+    system 'clear' or system 'cls'
+
     @prompt = TTY::Prompt.new
+
+    setup_procs
     new_game?
+
+  end
+
+  def setup_procs
+
+    @Blackjack = Proc.new{ |player| @table[player].total == 21 }
+    @Bust = Proc.new{ |player| @table[player].total > 21 }
+    @DealerStays = Proc.new{ @table[:dealer].total >= 16 }
+    @PlayerWins = Proc.new{ @table[:player].total >= @table[:dealer].total }
 
   end
 
   def new_game?
 
-    @start = begin
-               @prompt.yes?("\n  Would you like to start a new game of WAR?") {|q| q.default true}
-             rescue
-               retry
-             end || exit
+    begin
+      @prompt.yes?("\n※ Would you like to start a new game of Blackjack?") {|q| q.default true}
+    rescue
+      retry
+    end || exit
 
     set
     play
@@ -28,57 +43,160 @@ class Game
 
   def set
 
-    Player.new('Piotr')
-    Player.new('Yuri')
-    Player.first.wins = 0
-    Player.second.wins = 0
-    Player.first.deck = Deck.new
-    Player.second.deck = Deck.new
-    Players.shuffle
+    player_name = @prompt.ask("\n※ What should I call you?") do |q|
+      q.default 'Piotr'
+      q.validate(/\A[a-zA-Z]+(?: [a-zA-Z]+)?\z/)
+    end
 
-    @sets = []
-    @winning = ''
+    @player = Player.new(player_name)
+    @dealer = Dealer.new
+
+    @deck = Deck.new
+
+    @dealer.shuffle(@deck)
+
+    @player.wins = 0
+    @dealer.wins = 0
 
   end
 
   def play
 
-    52.times do |round|
+    if @deck.count >= 4
+      @table = @dealer.deal( @deck, true )
+    else
+      game_over
+    end
 
-      @hand = Players.draw
+    round
 
-      case resolve ( @hand )
+  end
 
-        when Player.first # wins the hand
-          Player.first.wins += 1
+  def round( call_it=false )
 
-        when Player.second # wins the hand
-          Player.second.wins += 1
+    display_table
+
+    check_hand( call_it )
+
+    hit_or_stay?
+
+  end
+
+  def display_table( expose_all=false )
+
+    system 'clear' or system 'cls'
+
+    puts "\n#{@player.name}'s hand:\n\n"
+      display_hand( :player )
+      puts "\nTOTAL: #{@table[ :player ].total}"
+
+    puts "\n\n\n#{@dealer.name}'s hand:\n\n"
+    expose_all == true ? display_hand( :dealer, true ) : display_hand( :dealer )
+    puts "\nTOTAL: #{@table[ :dealer ].total} | DECK COUNT: #{@deck.count}\n\n\n"
+
+  end
+
+  def check_hand( call_it=false )
+
+    if @Blackjack.(:player)
+      print "\nBLACKJACK! "
+      you_won
+    end
+
+    if @Bust.(:player)
+      puts "\nBUST! "
+      you_lost
+    end
+
+    if @Bust.(:dealer)
+      puts "\nDealer went BUST! "
+      you_won
+    end
+
+    if @Blackjack.(:dealer)
+      puts "\nDealer got BLACKJACK! "
+      you_lost
+    end
+
+    if call_it == true
+
+      if @PlayerWins.()
+
+        you_won
+
+      else
+
+        you_lost
 
       end
 
     end
 
-    tally
+  end
+
+  def another_round?
+
+    begin
+      @prompt.yes?("\n※ Play another round?") {|q| q.default true}
+    rescue
+      retry
+    end || new_game?
+
+    play
 
   end
 
-  def resolve(hand)
+  def hit_or_stay?
 
-      hand[0] > hand[1] ? Player.first : Player.second
-      # @sets << { Player1: [ hand[0].face, hand[0].suit ], Player1: [ hand[1].face, hand[1].suit ] }
+    @deck.count == 0 ? staying = 2 : staying = 0
+
+    unless staying == 2
+
+      hit_or_stay = @prompt.select("\n※ Would you like to hit or stay?", %w(Hit Stay))
+
+      if hit_or_stay == 'Stay'
+        staying += 1
+      else
+        @dealer.deal( @deck, false, :player )
+      end
+
+      if @DealerStays.()
+        staying += 1
+      else
+        @dealer.deal( @deck, false, :dealer )
+      end
+
+    end
+
+    round( (staying == 2) )
 
   end
 
-  def tally
+  def you_lost
 
-    @winning = Player.first.wins > Player.second.wins ? Player.first : Player.second
+    display_table ( true )
+    print "\nYou lost!\n"
+    @dealer.wins += 1
 
-    # set_detail = @sets.each do |set|
-    #   "#{set}"
-    # end
+    another_round?
 
-    print "\n  #{@winning.name} won overall with #{@winning.wins} out of 52.\n"
+  end
+
+  def you_won
+
+    display_table ( true )
+    print "\nYou won!\n"
+    @player.wins += 1
+
+    another_round?
+
+  end
+
+  def game_over
+
+    @winning = @player.wins > @dealer.wins ? @player : @dealer
+
+    print "\n  #{@winning.name} won with #{@winning.wins} hands.\n"
 
     new_game?
 
