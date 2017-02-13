@@ -6,7 +6,9 @@ require 'csv'
 
 class Game
 include ColorizeCards
+
 attr_accessor :deck, :dealer, :player, :ace_rule, :shoe_rule
+
 StatsFile = ARGV.first || 'player_stats.csv'
 @@ace_rule = '11'
 @@shoe_rule, @@hard_mode = false, false
