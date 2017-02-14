@@ -1,4 +1,8 @@
 #!/usr/bin/env ruby
+
+# add comment to enable push
+# again
+
 require_relative 'dealer'
 require_relative 'ColorizeCards'
 require 'colorize'
