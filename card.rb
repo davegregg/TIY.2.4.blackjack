@@ -1,5 +1,3 @@
-require 'pry'
-
 class Card
   include Comparable
   attr_accessor :value, :face, :suit
@@ -10,18 +8,14 @@ class Card
   end
 
   def calculate_value
-
     val = case @face.to_i
           when *(2..10)
              @face.to_i
           when 0 # catches all face cards
              10
           end
-
     val = 11 if @face == 'A'
-
-    return val
-
+    val
   end
 
   def <=>(other)
@@ -31,5 +25,4 @@ class Card
   def +(other)
     self.value + other.value
   end
-
 end
